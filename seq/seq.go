@@ -141,3 +141,8 @@ func BuildMultiFASTA(fsaResult, dataRepo string) {
 		}
 	}
 }
+
+func Compress(sequence string) {
+	var basesToBytes = map[string]byte{"A": 00, "C": 01, "T": 11, "U": 11, "G": 10}
+	fmt.Println(basesToBytes)
+}

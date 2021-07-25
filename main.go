@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/nsbuitrago/biokit/seq"
 )
 
 func main() {
 	sequence := "ACTG"
-	seq.Compress(sequence)
+	compressedSeq := seq.CompressSeq(sequence)
+	fmt.Println(compressedSeq)
 }

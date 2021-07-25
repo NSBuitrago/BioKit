@@ -1,6 +1,11 @@
+// TODO:
+// [x] refactor comments above functions
+// [ ] write detailed comments for each function
+
 package seq
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"math/rand"
@@ -9,18 +14,8 @@ import (
 	"strings"
 )
 
-func CreateRandomSeq(seqType string, seqSize int) (randSeq string) {
-	/* creates random nucletide sequence for testing purposes
-
-	input arguments:
-	- seqType (sequence type: DNA or RNA)
-	- seqSize (size of the sequence in nucleotide bases)
-
-	output:
-	- randSeq (a seqType sequence of size seqSize)
-	*/
-
-	// initialize bases for DNA or RNA sequence generation
+// CreateRandomSeq returns a random DNA or RNA sequence
+func CreateRandomSeq(seqType string, seqLength int) string {
 	var bases = []string{"A", "C", "G"}
 	switch strings.ToUpper(seqType) {
 	case "DNA":
@@ -31,28 +26,17 @@ func CreateRandomSeq(seqType string, seqSize int) (randSeq string) {
 		fmt.Printf("Nucleotide sequence of type %v not supported", seqType)
 	}
 
-	// add seqSize nucleotide bases to sequence
-	for i := 0; i < seqSize; i++ {
+	var randSeq string
+	for i := 0; i < seqLength; i++ {
 		randSeq += bases[rand.Intn(len(bases))]
 	}
 
 	return randSeq
 }
 
-func CreateRandomLib(libResult, seqType string, libSize, seqSize int) {
-	/* creates random sequence library for testing purposes
-
-	input arguments:
-	- libResult (name of fasta file to store record ID and sequences)
-	- seqType (sequence type: DNA or RNA)
-	- libSize (# of sequences to generate for library)
-	- seqSize (size of sequence in nucleotide bases)
-
-	output:
-	- data written to file specified by libResult
-	*/
-
-	fmt.Printf("Building %v library w/ %v %v-base sequences", seqType, libSize, seqSize)
+// CreateRandomLib creates a DNA or RNA library and writes sequences to a fasta file
+func CreateRandomLib(libResult, seqType string, libSize, seqLength int) {
+	fmt.Printf("Building %v library w/ %v %v-base sequences", seqType, libSize, seqLength)
 	results, resultOpenErr := os.OpenFile(libResult, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	if resultOpenErr != nil {
@@ -61,7 +45,7 @@ func CreateRandomLib(libResult, seqType string, libSize, seqSize int) {
 
 	for i := 0; i < libSize; i++ {
 		recordName := fmt.Sprintf(">test-%v-sequence %v\n", seqType, i)
-		recordSeq := CreateRandomSeq(seqType, seqSize)
+		recordSeq := CreateRandomSeq(seqType, seqLength)
 		fullRecord := recordName + recordSeq
 
 		if _, writerErr := results.Write([]byte(fullRecord)); writerErr != nil {
@@ -76,16 +60,8 @@ func CreateRandomLib(libResult, seqType string, libSize, seqSize int) {
 	fmt.Println("Job Complete")
 }
 
-func validateFASTA(fileFormat string) bool {
-	/* validate FASTA file format
-
-	input argument:
-	- fileFormat (file extension as a string)
-
-	output:
-	boolean value (true if the extension is valid, false otherwise)
-	*/
-
+// ValidateFASTA returns true if passed extension is a fasta-like extenstion, returns false otherwise.
+func ValidateFASTA(fileFormat string) bool {
 	var validFormats = []string{".fasta", ".fsa", ".fastq"}
 	for _, format := range validFormats {
 		if format == fileFormat {
@@ -95,18 +71,8 @@ func validateFASTA(fileFormat string) bool {
 	return false
 }
 
+// BuildMultiFASTA writes a fasta file containing all records found in a given directory
 func BuildMultiFASTA(fsaResult, dataRepo string) {
-	/* builds a multi record fasta file from valid files in directory
-
-	input arguments:
-	- dataRepo (directory containing multiple FASTA files)
-	* All files not in fasta format (i.e. .fasta, .fsa, .fastq) will be ignored
-	- fsaResult (name of file to store record ID and sequences)
-
-	output:
-	- data writen to file specified by fsaResult
-	*/
-
 	fmt.Println("Building mutli record FASTA file...")
 	files, err := os.ReadDir(dataRepo)
 
@@ -115,26 +81,26 @@ func BuildMultiFASTA(fsaResult, dataRepo string) {
 	}
 
 	for _, file := range files {
-		if validateFASTA((path.Ext(file.Name()))) {
-			fsaData, fsaReadErr := os.ReadFile(dataRepo + file.Name())
+		if ValidateFASTA((path.Ext(file.Name()))) {
+			fsaData, err := os.ReadFile(dataRepo + file.Name())
 
-			if fsaReadErr != nil {
-				log.Fatal(fsaReadErr)
+			if err != nil {
+				log.Fatal(err)
 			}
 
-			results, resultOpenErr := os.OpenFile(fsaResult, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			results, err := os.OpenFile(fsaResult, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
-			if resultOpenErr != nil {
-				log.Fatal(resultOpenErr)
+			if err != nil {
+				log.Fatal(err)
 			}
 
-			if _, writerErr := results.Write([]byte(fsaData)); writerErr != nil {
+			if _, err := results.Write([]byte(fsaData)); err != nil {
 				results.Close() // ignore error; Write error takes precedence
-				log.Fatal(writerErr)
+				log.Fatal(err)
 			}
 
-			if closerErr := results.Close(); closerErr != nil {
-				log.Fatal(closerErr)
+			if err := results.Close(); err != nil {
+				log.Fatal(err)
 			}
 		} else {
 			fmt.Printf("Warning: non FASTA formats not supported. %v ignored\n", file.Name())
@@ -142,7 +108,14 @@ func BuildMultiFASTA(fsaResult, dataRepo string) {
 	}
 }
 
-func Compress(sequence string) {
+// CompressSeq performs byte-packed compression on a DNA or RNA sequence and returns its byte representation.
+func CompressSeq(sequence string) *bytes.Buffer {
 	var basesToBytes = map[string]byte{"A": 00, "C": 01, "T": 11, "U": 11, "G": 10}
-	fmt.Println(basesToBytes)
+	compressedSeq := bytes.NewBuffer(make([]byte, 0, len(sequence)))
+
+	for _, base := range sequence {
+		compressedSeq.WriteByte(basesToBytes[string(base)])
+	}
+
+	return compressedSeq
 }

@@ -1,10 +1,7 @@
-// TODO:
-// [x] refactor comments above functions
-// [ ] write detailed comments for each function
-
 package seq
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"log"
@@ -53,11 +50,75 @@ func CreateRandomLib(libResult, seqType string, libSize, seqLength int) {
 			log.Fatal(writerErr)
 		}
 
-		if closerErr := results.Close(); closerErr != nil {
-			log.Fatal(closerErr)
-		}
+	}
+
+	if closerErr := results.Close(); closerErr != nil {
+		log.Fatal(closerErr)
 	}
 	fmt.Println("Job Complete")
+}
+
+// CompressSeq performs byte-packed compression on a DNA or RNA sequence and returns its byte representation.
+func CompressSeq(sequence string) *bytes.Buffer {
+	var basesToBytes = map[string]byte{"A": 00, "C": 01, "T": 11, "U": 11, "G": 10, "N": 111}
+	compressedSeq := bytes.NewBuffer(make([]byte, 0, len(sequence)))
+
+	// for i in range(0, len(sequence), 4)
+	// 4bases := sequence[i] && sequence[i+1] && sequence[i+2] && sequence[i+3]
+	for _, base := range sequence {
+		compressedSeq.WriteByte(basesToBytes[string(base)])
+	}
+
+	return compressedSeq
+}
+
+// merge multiple FASTA files
+func MergeFASTA(fsaOut, fsaDir string) {
+	files, err := os.ReadDir(fsaDir)
+
+	if err != nil {
+		log.Fatalf("could not read directory: %v", err)
+	}
+
+	out, err := os.OpenFile(fsaOut, os.O_CREATE|os.O_WRONLY, 0644)
+
+	if err != nil {
+		log.Fatalf("could not open %v: %v", fsaOut, err)
+	}
+
+	for _, file := range files {
+		validFormat := ValidateFASTA(path.Ext(file.Name()))
+
+		if validFormat {
+			fsaRecord, err := os.Open(fsaDir + file.Name())
+
+			if err != nil {
+				fmt.Printf("could not open %v for reading:, %v\n", file.Name(), err)
+			}
+
+			scanner := bufio.NewScanner(fsaRecord)
+			scanner.Split(ScanFASTA)
+
+			for scanner.Scan() {
+				if _, err := out.Write([]byte(scanner.Text())); err != nil {
+					out.Close()
+					log.Fatal(err)
+				}
+			}
+
+			if err := fsaRecord.Close(); err != nil {
+				fmt.Printf("warning: error closing %v: %v", fsaRecord, err)
+			}
+
+		} else {
+			fmt.Printf("Warning: non fasta files not supported. %v ignored\n", file.Name())
+		}
+	}
+
+	if err := out.Close(); err != nil {
+		log.Fatalf("could not close %v: %v", out, err)
+	}
+
 }
 
 // ValidateFASTA returns true if passed extension is a fasta-like extenstion, returns false otherwise.
@@ -71,51 +132,20 @@ func ValidateFASTA(fileFormat string) bool {
 	return false
 }
 
-// BuildMultiFASTA writes a fasta file containing all records found in a given directory
-func BuildMultiFASTA(fsaResult, dataRepo string) {
-	fmt.Println("Building mutli record FASTA file...")
-	files, err := os.ReadDir(dataRepo)
-
-	if err != nil {
-		log.Fatal(err)
+// ScanFASTA is a split function for a Scanner, same as ScanLines, but returns each line
+// of text, NOT stripped of any trailing end-of-line marker.
+func ScanFASTA(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
 	}
-
-	for _, file := range files {
-		if ValidateFASTA((path.Ext(file.Name()))) {
-			fsaData, err := os.ReadFile(dataRepo + file.Name())
-
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			results, err := os.OpenFile(fsaResult, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			if _, err := results.Write([]byte(fsaData)); err != nil {
-				results.Close() // ignore error; Write error takes precedence
-				log.Fatal(err)
-			}
-
-			if err := results.Close(); err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			fmt.Printf("Warning: non FASTA formats not supported. %v ignored\n", file.Name())
-		}
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		// We have a full newline-terminated line.
+		return i + 1, data[0 : i+1], nil
 	}
-}
-
-// CompressSeq performs byte-packed compression on a DNA or RNA sequence and returns its byte representation.
-func CompressSeq(sequence string) *bytes.Buffer {
-	var basesToBytes = map[string]byte{"A": 00, "C": 01, "T": 11, "U": 11, "G": 10}
-	compressedSeq := bytes.NewBuffer(make([]byte, 0, len(sequence)))
-
-	for _, base := range sequence {
-		compressedSeq.WriteByte(basesToBytes[string(base)])
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), data, nil
 	}
-
-	return compressedSeq
+	// Request more data.
+	return 0, nil, nil
 }

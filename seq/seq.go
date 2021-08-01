@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// CreateRandomSeq returns a random DNA or RNA sequence
+// CreateRandomSeq returns a random uncompressed DNA or RNA sequence
 func CreateRandomSeq(seqType string, seqLength int) string {
 	var bases = []string{"A", "C", "G"}
 	switch strings.ToUpper(seqType) {
@@ -20,7 +20,7 @@ func CreateRandomSeq(seqType string, seqLength int) string {
 	case "RNA":
 		bases = append(bases, "U")
 	default:
-		fmt.Printf("Nucleotide sequence of type %v not supported", seqType)
+		log.Fatalf("Nucleotide sequence of type %v not supported", seqType)
 	}
 
 	var randSeq string
@@ -33,11 +33,11 @@ func CreateRandomSeq(seqType string, seqLength int) string {
 
 // CreateRandomLib creates a DNA or RNA library and writes sequences to a fasta file
 func CreateRandomLib(libResult, seqType string, libSize, seqLength int) {
-	fmt.Printf("Building %v library w/ %v %v-base sequences", seqType, libSize, seqLength)
-	results, resultOpenErr := os.OpenFile(libResult, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	fmt.Printf("Creating %v library w/ %v %v-base sequences", seqType, libSize, seqLength)
+	out, err := os.OpenFile(libResult, os.O_CREATE|os.O_WRONLY, 0644)
 
-	if resultOpenErr != nil {
-		log.Fatal(resultOpenErr)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	for i := 0; i < libSize; i++ {
@@ -45,17 +45,17 @@ func CreateRandomLib(libResult, seqType string, libSize, seqLength int) {
 		recordSeq := CreateRandomSeq(seqType, seqLength)
 		fullRecord := recordName + recordSeq
 
-		if _, writerErr := results.Write([]byte(fullRecord)); writerErr != nil {
-			results.Close() // ignore error; Write error takes precedence
-			log.Fatal(writerErr)
+		if _, err := out.Write([]byte(fullRecord)); err != nil {
+			out.Close() // ignore error; Write error takes precedence
+			log.Fatal(err)
 		}
-
 	}
 
-	if closerErr := results.Close(); closerErr != nil {
-		log.Fatal(closerErr)
+	if err := out.Close(); err != nil {
+		log.Fatal(err)
 	}
-	fmt.Println("Job Complete")
+
+	fmt.Printf("%v library written in %v", seqType, libResult)
 }
 
 // CompressSeq performs byte-packed compression on a DNA or RNA sequence and returns its byte representation.
@@ -87,11 +87,8 @@ func MergeFASTA(fsaOut, fsaDir string) {
 	}
 
 	for _, file := range files {
-		validFormat := ValidateFASTA(path.Ext(file.Name()))
-
-		if validFormat {
+		if validFormat := ValidateFASTA(path.Ext(file.Name())); validFormat {
 			fsaRecord, err := os.Open(fsaDir + file.Name())
-
 			if err != nil {
 				fmt.Printf("could not open %v for reading:, %v\n", file.Name(), err)
 			}
@@ -118,7 +115,6 @@ func MergeFASTA(fsaOut, fsaDir string) {
 	if err := out.Close(); err != nil {
 		log.Fatalf("could not close %v: %v", out, err)
 	}
-
 }
 
 // ValidateFASTA returns true if passed extension is a fasta-like extenstion, returns false otherwise.
